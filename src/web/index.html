@@ -454,6 +454,14 @@
   <!-- Toolbar (Desktop only) -->
   <div class="desktop-only bg-white border-b border-gray-200 px-2 sm:px-4 py-2 flex-shrink-0">
     <div class="flex items-center gap-1 sm:gap-2 flex-wrap">
+      <!-- Create with AI (optional, lazy-loaded) -->
+      <button id="create-ai-btn" class="toolbar-btn text-indigo-700" title="Create a label from a text description using OpenAI">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+        <span class="hidden sm:inline">Create with AI</span>
+      </button>
+
+      <div class="toolbar-divider"></div>
+
       <!-- Add Elements -->
       <button id="add-text" class="toolbar-btn" title="Add Text">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16"/></svg>
@@ -948,6 +956,10 @@
               <input type="checkbox" id="prop-auto-scale" class="w-3 h-3 rounded border-gray-300">
               Auto-fit
             </label>
+            <label class="flex items-center gap-1 cursor-pointer text-[11px] text-gray-600" title="Right-to-left base direction (Hebrew, Arabic)">
+              <input type="checkbox" id="prop-rtl" class="w-3 h-3 rounded border-gray-300">
+              RTL
+            </label>
           </div>
         </div>
 
@@ -1312,6 +1324,112 @@
           <button id="print-settings-save" class="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm">Save</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- Create with AI Dialog (behaviour lives in ai/dialog.js, loaded on first use) -->
+  <div id="ai-dialog" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-[60] p-4" role="dialog" aria-modal="true" aria-labelledby="ai-dialog-title">
+    <div class="bg-white rounded-xl p-5 sm:p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="ai-dialog-title" class="text-lg font-semibold text-gray-900">Create with AI</h3>
+        <button id="ai-close" class="text-gray-400 hover:text-gray-600" aria-label="Close">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <form id="ai-form" class="space-y-4" autocomplete="off" novalidate>
+        <!-- API key -->
+        <div>
+          <label for="ai-api-key" class="prop-label">OpenAI API key</label>
+          <div class="flex gap-2">
+            <input type="password" id="ai-api-key" class="prop-input flex-1 font-mono" placeholder="sk-..." autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button type="button" id="ai-key-toggle" class="px-3 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50" aria-pressed="false">Show</button>
+          </div>
+          <div class="flex items-center justify-between mt-1.5 gap-2">
+            <label class="flex items-center gap-1.5 text-xs text-gray-600">
+              <input type="checkbox" id="ai-remember-key" class="rounded"> Remember on this device
+            </label>
+            <button type="button" id="ai-forget-key" class="hidden text-xs text-red-600 hover:text-red-800 hover:underline">Forget saved key</button>
+          </div>
+          <p class="text-xs text-gray-400 mt-1">Sent only to api.openai.com from your browser. Unless you tick “Remember”, it is kept in memory and cleared when the page closes. <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:underline">Get a key</a></p>
+        </div>
+
+        <!-- Prompt -->
+        <div>
+          <label for="ai-prompt" class="prop-label">Describe your label</label>
+          <textarea id="ai-prompt" rows="4" maxlength="4000" class="prop-input resize-y" dir="auto" placeholder="e.g. A 50 × 30 mm warehouse label with item name, SKU, a barcode, quantity and shelf location"></textarea>
+        </div>
+
+        <!-- Size -->
+        <div>
+          <label for="ai-size-mode" class="prop-label">Label size</label>
+          <select id="ai-size-mode" class="prop-input">
+            <option value="current" id="ai-size-current">Current label size</option>
+            <option value="auto">Let AI choose (uses size from description)</option>
+            <option value="custom">Custom size…</option>
+          </select>
+          <div id="ai-custom-size" class="hidden flex items-center gap-2 mt-2">
+            <input type="number" id="ai-width" min="10" max="100" value="50" class="prop-input w-20" aria-label="Width in mm">
+            <span class="text-gray-400">×</span>
+            <input type="number" id="ai-height" min="10" max="200" value="30" class="prop-input w-20" aria-label="Height in mm">
+            <span class="text-xs text-gray-500">mm</span>
+            <label class="flex items-center gap-1 text-xs text-gray-600 ml-2"><input type="checkbox" id="ai-round" class="rounded"> Round</label>
+          </div>
+          <p id="ai-multilabel-note" class="hidden text-xs text-blue-600 mt-1">Multi-label mode: the design is placed in the selected label.</p>
+        </div>
+
+        <!-- Advanced -->
+        <details id="ai-advanced" class="border border-gray-200 rounded-lg">
+          <summary class="px-3 py-2 text-sm text-gray-700 cursor-pointer select-none">Advanced options</summary>
+          <div class="px-3 pb-3 pt-1 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label for="ai-orientation" class="prop-label">Orientation</label>
+                <select id="ai-orientation" class="prop-input">
+                  <option value="auto">Automatic</option>
+                  <option value="landscape">Landscape</option>
+                  <option value="portrait">Portrait</option>
+                </select>
+              </div>
+              <div>
+                <label for="ai-direction" class="prop-label">Text direction</label>
+                <select id="ai-direction" class="prop-input">
+                  <option value="auto">Automatic</option>
+                  <option value="ltr">Left to right</option>
+                  <option value="rtl">Right to left</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label for="ai-model" class="prop-label">Model</label>
+              <input type="text" id="ai-model" class="prop-input" list="ai-model-options" maxlength="64" autocomplete="off" spellcheck="false">
+              <datalist id="ai-model-options"></datalist>
+              <p class="text-xs text-gray-400 mt-1">Leave empty for the recommended default. Must support Structured Outputs.</p>
+            </div>
+            <label class="flex items-center gap-1.5 text-sm text-gray-700">
+              <input type="checkbox" id="ai-keep-existing" class="rounded"> Add to current design instead of replacing it
+            </label>
+          </div>
+        </details>
+
+        <!-- Status / errors -->
+        <div id="ai-progress" class="hidden flex items-center gap-2 text-sm text-gray-600" role="status" aria-live="polite">
+          <svg class="w-4 h-4 animate-spin text-indigo-600" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+          <span id="ai-progress-text">Generating…</span>
+        </div>
+        <div id="ai-error" class="hidden p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700" role="alert">
+          <p id="ai-error-message"></p>
+          <details id="ai-error-details-wrap" class="mt-1 text-xs text-red-600">
+            <summary class="cursor-pointer">Technical details</summary>
+            <p id="ai-error-details" class="mt-1 font-mono break-all"></p>
+          </details>
+        </div>
+
+        <div class="flex gap-2 pt-1">
+          <button type="button" id="ai-cancel" class="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancel</button>
+          <button type="submit" id="ai-generate" class="flex-1 px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 text-sm disabled:opacity-50">Generate</button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -1968,6 +2086,12 @@
 
         <!-- Actions -->
         <div class="space-y-1">
+          <button id="mobile-create-ai-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
+            <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/>
+            </svg>
+            Create with AI
+          </button>
           <button id="mobile-save-btn" class="w-full px-3 py-2.5 text-left text-sm hover:bg-gray-100 active:bg-gray-200 rounded-lg flex items-center gap-3">
             <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"/>
@@ -2143,7 +2267,7 @@
     pdfjsModule.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.mjs';
     window.pdfjsLib = pdfjsModule;
   </script>
-  <script type="module" src="app.js?v=151"></script>
+  <script type="module" src="app.js?v=152"></script>
   <script>
     // Show body once styles are ready
     requestAnimationFrame(() => {

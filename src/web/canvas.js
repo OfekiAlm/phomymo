@@ -894,7 +894,7 @@ export class CanvasRenderer {
    * Render text element (centered at origin)
    */
   renderTextElement(element, width, height) {
-    const { text, fontSize, color, align, verticalAlign, fontFamily, fontWeight, fontStyle, textDecoration, background, noWrap, clipOverflow, autoScale } = element;
+    const { text, fontSize, color, align, verticalAlign, fontFamily, fontWeight, fontStyle, textDecoration, background, noWrap, clipOverflow, autoScale, direction } = element;
 
     // Draw background if not transparent
     if (background && background !== 'transparent') {
@@ -928,6 +928,10 @@ export class CanvasRenderer {
     const fontStr = `${style} ${weight} ${effectiveFontSize}px ${fontFamily || 'Inter, sans-serif'}`.trim();
     this.ctx.font = fontStr;
     this.ctx.textBaseline = 'middle';
+    // Base direction for the bidi algorithm (RTL/mixed text). Left/right alignment stays physical.
+    if (direction === 'rtl' || direction === 'ltr') {
+      this.ctx.direction = direction;
+    }
 
     // Set text alignment
     let textX = 0;

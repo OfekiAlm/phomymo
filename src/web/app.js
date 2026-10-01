@@ -4,7 +4,7 @@
  * v116
  */
 
-import { CanvasRenderer } from './canvas.js?v=115';
+import { CanvasRenderer } from './canvas.js?v=116';
 import { BLETransport } from './ble.js?v=103';
 import { USBTransport } from './usb.js?v=101';
 import { print, printDensityTest, isDSeriesPrinter, isP12Printer, isA30Printer, isTapePrinter, isPM241Printer, isTSPLPrinter, isRotatedPrinter, getPrinterWidthBytes, getPrinterDpi, getPrinterAlignment, getPrinterDescription, isDeviceRecognized, getMatchedPattern, loadPrinterDefinitions, getAllPrinterDefinitions, getPrinterDefinition, getCustomPrinterDefinitions, saveCustomPrinterDefinition, deleteCustomPrinterDefinition, isBuiltinPrinter, resetBuiltinPrinter, getAvailableProtocols, getAvailableLabelPresets, getDetectedDefinition } from './printer.js?v=128';
@@ -2155,7 +2155,7 @@ function modifyElement(id, changes) {
   state.elements = updateElement(state.elements, id, changes);
 
   // Only clear cache if content or size changed (not just position/rotation)
-  const contentKeys = ['width', 'height', 'text', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'background', 'noWrap', 'clipOverflow', 'autoScale', 'verticalAlign', 'imageData', 'barcodeData', 'barcodeFormat', 'qrData', 'brightness', 'contrast', 'dither', 'showText', 'textFontSize', 'textBold'];
+  const contentKeys = ['width', 'height', 'text', 'fontSize', 'fontFamily', 'fontWeight', 'fontStyle', 'textDecoration', 'background', 'noWrap', 'clipOverflow', 'autoScale', 'verticalAlign', 'imageData', 'barcodeData', 'barcodeFormat', 'qrData', 'brightness', 'contrast', 'dither', 'showText', 'textFontSize', 'textBold', 'direction'];
   const needsCacheClear = Object.keys(changes).some(key => contentKeys.includes(key));
   if (needsCacheClear) {
     state.renderer.clearCache(id);
@@ -2218,6 +2218,7 @@ function startInlineEdit(elementId) {
     color: element.color === 'white' ? '#fff' : '#000',
     lineHeight: '1.2',
   });
+  setTextDirectionAttr(editor, element.direction);
 
   // Set content and show
   editor.value = element.text || '';
@@ -2332,6 +2333,8 @@ function updatePropertiesPanel() {
       $('#prop-no-wrap').checked = element.noWrap || false;
       $('#prop-clip-overflow').checked = element.clipOverflow || false;
       $('#prop-auto-scale').checked = element.autoScale || false;
+      $('#prop-rtl').checked = element.direction === 'rtl';
+      setTextDirectionAttr($('#prop-text-content'), element.direction);
       // Update horizontal alignment buttons
       $$('.align-btn').forEach(btn => {
         btn.classList.toggle('bg-gray-100', btn.dataset.align === element.align);
@@ -5185,6 +5188,188 @@ function handleImportFile(file) {
 }
 
 /**
+ * Apply an element's text direction to an editing control.
+ * RTL/LTR are explicit; anything else keeps the control's inherited default.
+ */
+function setTextDirectionAttr(control, direction) {
+  if (!control) return;
+  if (direction === 'rtl' || direction === 'ltr') control.dir = direction;
+  else control.removeAttribute('dir');
+}
+
+// =============================================================================
+// CREATE WITH AI (optional feature, lazy-loaded from ./ai/)
+// =============================================================================
+
+let _textMeasureCtx = null;
+
+/**
+ * Host API handed to the AI dialog. Keeps the AI module decoupled from editor internals.
+ */
+function getAIHost() {
+  return {
+    getContext: () => {
+      const multi = state.multiLabel.enabled;
+      const deviceName = state.transport?.getDeviceName?.() || '';
+      const model = state.printSettings.printerModel;
+      let printer = '';
+      try {
+        printer = (deviceName || model !== 'auto') ? getPrinterDescription(deviceName, model) : '';
+      } catch {
+        printer = '';
+      }
+      return {
+        widthMm: multi ? state.multiLabel.labelWidth : state.labelSize.width,
+        heightMm: multi ? state.multiLabel.labelHeight : state.labelSize.height,
+        round: !multi && !!state.labelSize.round,
+        multiLabel: multi,
+        zone: multi ? state.activeZone : 0,
+        hasElements: state.elements.length > 0,
+        dpi: getPrinterDpi(deviceName, model),
+        printer,
+      };
+    },
+    applyDesign: applyGeneratedDesign,
+    measureTextWidth: (text, cssFont) => {
+      if (!_textMeasureCtx) _textMeasureCtx = document.createElement('canvas').getContext('2d');
+      _textMeasureCtx.font = cssFont;
+      return _textMeasureCtx.measureText(text).width;
+    },
+    barcodeProbe: (data, format) => {
+      if (typeof JsBarcode === 'undefined') return true;
+      try {
+        JsBarcode(document.createElementNS('http://www.w3.org/2000/svg', 'svg'), data, { format, displayValue: false });
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    showToast,
+  };
+}
+
+/**
+ * Open the Create with AI dialog (module is loaded on first use).
+ */
+async function openCreateWithAI() {
+  if (state.editingTextId) stopInlineEdit(true);
+  try {
+    const { openCreateWithAIDialog } = await import('./ai/dialog.js?v=1');
+    openCreateWithAIDialog(getAIHost());
+  } catch (err) {
+    logError(err, 'openCreateWithAI');
+    showToast('Create with AI could not be loaded. Check your connection and try again.', 'error', 4000);
+  }
+}
+
+/**
+ * Select a label size in the existing size controls, reusing the normal size-change handlers.
+ */
+function applyLabelSizeFromDesign({ width, height, round }) {
+  const select = $('#label-size');
+  const sizeKey = round ? `${width}mm Round` : `${width}x${height}`;
+  const hasOption = [...select.options].some(o => o.value === sizeKey);
+  if (LABEL_SIZES[sizeKey] && hasOption) {
+    select.value = sizeKey;
+    handleLabelSizeChange();
+  } else {
+    select.value = 'custom';
+    $('#custom-size').classList.remove('hidden');
+    $('#custom-width').value = width;
+    $('#custom-height').value = height;
+    $('#custom-round').checked = !!round;
+    if ($('#custom-continuous')) $('#custom-continuous').checked = false;
+    handleCustomSizeChange();
+  }
+  syncMobileLabelSize();
+}
+
+/**
+ * Insert an AI-generated design as a single undoable editor operation.
+ * Transactional: on any failure the previous elements, size and history are restored.
+ * @param {Object} design
+ * @param {Array} design.elements - Native editor elements
+ * @param {Object} design.labelSize - { width, height, round } in mm
+ * @param {boolean} design.applySize - Whether to switch the label size
+ * @param {boolean} design.keepExisting - Add to the current design instead of replacing it
+ */
+function applyGeneratedDesign({ elements, labelSize, applySize, keepExisting }) {
+  if (!Array.isArray(elements) || elements.length === 0) {
+    throw new Error('No elements to insert');
+  }
+  const snapshot = {
+    elements: state.elements,
+    labelSize: { ...state.labelSize },
+    history: state.history.slice(),
+    historyIndex: state.historyIndex,
+    selectedIds: state.selectedIds.slice(),
+    sizeSelect: $('#label-size').value,
+    customWidth: $('#custom-width').value,
+    customHeight: $('#custom-height').value,
+    customRound: $('#custom-round').checked,
+  };
+
+  try {
+    saveHistory();
+    const fresh = JSON.parse(JSON.stringify(elements));
+    const multi = state.multiLabel.enabled;
+    if (applySize && !multi && labelSize) {
+      const { width, height, round } = state.labelSize;
+      if (width !== labelSize.width || height !== labelSize.height || !!round !== !!labelSize.round) {
+        applyLabelSizeFromDesign(labelSize);
+      }
+    }
+    if (keepExisting) {
+      state.elements = [...state.elements, ...fresh];
+    } else if (multi) {
+      // Replace only the active label; other zones are rebuilt by clone mode if enabled.
+      state.elements = [...state.elements.filter(el => (el.zone || 0) !== state.activeZone), ...fresh];
+    } else {
+      state.elements = fresh;
+    }
+    autoCloneIfEnabled();
+
+    state.selectedIds = [];
+    state.renderer.clearCache();
+    detectTemplateFields();
+    render();
+    updatePropertiesPanel();
+    updateToolbarState();
+    updateUndoRedoButtons();
+    setStatus('Label created with AI');
+  } catch (err) {
+    state.elements = snapshot.elements;
+    state.history = snapshot.history;
+    state.historyIndex = snapshot.historyIndex;
+    state.selectedIds = snapshot.selectedIds;
+    const sizeChanged = state.labelSize.width !== snapshot.labelSize.width
+      || state.labelSize.height !== snapshot.labelSize.height
+      || !!state.labelSize.round !== !!snapshot.labelSize.round;
+    if (sizeChanged) {
+      $('#label-size').value = snapshot.sizeSelect;
+      $('#custom-width').value = snapshot.customWidth;
+      $('#custom-height').value = snapshot.customHeight;
+      $('#custom-round').checked = snapshot.customRound;
+      state.labelSize = snapshot.labelSize;
+      state.renderer.setDimensions(state.labelSize.width, state.labelSize.height, state.zoom, state.labelSize.round || false);
+      updatePrintSize();
+      syncMobileLabelSize();
+    }
+    try {
+      state.renderer.clearCache();
+      render();
+      updatePropertiesPanel();
+      updateToolbarState();
+      updateUndoRedoButtons();
+    } catch (renderErr) {
+      logError(renderErr, 'applyGeneratedDesign.rollback');
+    }
+    logError(err, 'applyGeneratedDesign');
+    throw err;
+  }
+}
+
+/**
  * Update elements list dropdown
  */
 function updateElementsList() {
@@ -5776,6 +5961,10 @@ function initMobileUI() {
   $('#mobile-menu-backdrop')?.addEventListener('click', closeMobileMenu);
 
   // Mobile menu actions
+  $('#mobile-create-ai-btn')?.addEventListener('click', () => {
+    closeMobileMenu();
+    openCreateWithAI();
+  });
   $('#mobile-save-btn')?.addEventListener('click', () => {
     closeMobileMenu();
     showSaveDialog();
@@ -6142,7 +6331,7 @@ function populateMobileProps() {
             ${fieldDropdownHtml('mobile-prop-text')}
           </div>
         </div>
-        <textarea id="mobile-prop-text" class="prop-input" rows="2">${escapeHtml(selected.text || '')}</textarea>
+        <textarea id="mobile-prop-text" class="prop-input" rows="2"${selected.direction === 'rtl' ? ' dir="rtl"' : ''}>${escapeHtml(selected.text || '')}</textarea>
       </div>
       <div class="prop-group">
         <div class="prop-row">
@@ -6244,6 +6433,10 @@ function populateMobileProps() {
           <label class="flex items-center gap-2">
             <input type="checkbox" id="mobile-prop-autoScale" class="w-5 h-5" ${selected.autoScale ? 'checked' : ''}>
             <span class="text-sm">Auto-fit</span>
+          </label>
+          <label class="flex items-center gap-2">
+            <input type="checkbox" id="mobile-prop-rtl" class="w-5 h-5" ${selected.direction === 'rtl' ? 'checked' : ''}>
+            <span class="text-sm">Right-to-left</span>
           </label>
         </div>
       </div>
@@ -6541,6 +6734,10 @@ function wireUpMobilePropHandlers(element) {
   $('#mobile-prop-noWrap')?.addEventListener('change', (e) => updateProp('noWrap', e.target.checked));
   $('#mobile-prop-clipOverflow')?.addEventListener('change', (e) => updateProp('clipOverflow', e.target.checked));
   $('#mobile-prop-autoScale')?.addEventListener('change', (e) => updateProp('autoScale', e.target.checked));
+  $('#mobile-prop-rtl')?.addEventListener('change', (e) => {
+    updateProp('direction', e.target.checked ? 'rtl' : 'ltr');
+    setTextDirectionAttr($('#mobile-prop-text'), element.direction);
+  });
 
   // Barcode/QR properties - use live update for typing
   const valueInput = $('#mobile-prop-value');
@@ -7379,6 +7576,7 @@ function init() {
   });
 
   // Add element buttons
+  $('#create-ai-btn')?.addEventListener('click', openCreateWithAI);
   $('#add-text').addEventListener('click', addTextElement);
   $('#add-image').addEventListener('click', () => $('#image-file-input').click());
   $('#image-file-input').addEventListener('change', (e) => {
@@ -7627,6 +7825,12 @@ function init() {
   bindCheckbox('#prop-no-wrap', 'noWrap', 'text', bindCtx);
   bindCheckbox('#prop-clip-overflow', 'clipOverflow', 'text', bindCtx);
   bindCheckbox('#prop-auto-scale', 'autoScale', 'text', bindCtx);
+  $('#prop-rtl')?.addEventListener('change', (e) => {
+    const selected = getSelected();
+    if (selected?.type !== 'text') return;
+    saveHistory();
+    modifyElement(selected.id, { direction: e.target.checked ? 'rtl' : 'ltr' });
+  });
 
   // Font style toggle buttons
   bindToggleButton('#style-bold', 'fontWeight', 'text', bindCtx);
