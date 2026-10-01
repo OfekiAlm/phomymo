@@ -37,6 +37,10 @@ python3 -m http.server 8080
 
 **Instant Expressions** - Dynamic values at print time using `[[expression]]` syntax: `[[date]]`, `[[time]]`, `[[datetime]]`, or custom formats like `[[date|MM/DD/YYYY]]`. Works in text, barcodes, and QR codes.
 
+**Create with AI** - Describe a label in plain language and generate an editable design with your own OpenAI API key. See [Create with AI](#create-with-ai).
+
+**Right-to-left text** - Per-element RTL direction for Hebrew/Arabic and mixed-direction text.
+
 **Print Preview** - Toggle dither preview to see exact thermal print output before printing.
 
 **Export** - Save/load designs to browser storage, export/import as JSON, export to PDF or PNG.
@@ -117,12 +121,77 @@ phomymo/
 │       ├── printer.js     # Print protocols
 │       ├── printers.json  # Built-in printer definitions
 │       ├── constants.js   # Shared constants
+│       ├── ai/            # Create with AI (optional, lazy-loaded)
 │       └── utils/
 │           ├── bindings.js   # Event binding helpers
 │           ├── errors.js     # Error handling
 │           └── validation.js # Input validation
 └── README.md
 ```
+
+## Create with AI
+
+Generate a complete, editable label from a description such as *"50 × 30 mm warehouse label with item name, SKU barcode, quantity and shelf location"*.
+
+### Usage
+
+1. Click **Create with AI** in the toolbar (mobile: menu → **Create with AI**).
+2. Paste an OpenAI API key (create one at <https://platform.openai.com/api-keys>; the account needs API billing/credits).
+3. Describe the label and click **Generate**.
+
+The result is inserted as normal text, barcode, QR and shape elements, so you can select, move, resize, edit, group, save, export and print it like any hand-made label. One **Undo** restores your previous elements.
+
+Optional settings: label size (current, let the AI choose, or custom), and under **Advanced options** orientation, text direction, model and "add to current design instead of replacing it". In multi-label mode the design goes into the selected label.
+
+### API key storage and security
+
+- The app is fully client-side; the key is sent **only** to `https://api.openai.com/v1/responses`, directly from your browser. There is no Phomymo server.
+- By default the key is kept in memory and forgotten when the page closes. Ticking **Remember on this device** stores it in this browser's `localStorage` (`phomymo_openai_api_key`); **Forget saved key** removes it. `localStorage` is readable by any script on this origin, so only remember the key on devices you trust, and prefer a [project key with a spending limit](https://platform.openai.com/settings/organization/limits).
+- The key is never logged and is redacted from error details. Requests use `store: false`.
+- Model output is treated as untrusted: it is schema-checked, sanitized (no HTML or scripts, no `javascript:`/`data:` URLs in QR codes, no bidi overrides), clamped to the label bounds and converted only into existing element types.
+
+### What it can generate
+
+Text (fonts from the editor's list, size, bold/italic/underline, alignment, RTL), QR codes, barcodes (CODE128, EAN-13, UPC-A, CODE39), rectangles/ellipses/triangles with dithered fills, lines, tables (as grouped text cells and rules), and image placeholders (a captioned frame to replace with your own image). `{{Field}}` template fields and `[[date]]` expressions are preserved.
+
+### Known limitations
+
+- The AI cannot supply real logos or pictures; it inserts a placeholder.
+- Undo restores elements but not a label-size change (same as manual size changes).
+- Text is single-style per element (no mixed rich text in one box).
+- Barcodes/QR codes are resized or converted (e.g. invalid EAN-13 → CODE128) when the request cannot be printed scannably.
+
+### Troubleshooting
+
+| Message | Fix |
+|---|---|
+| OpenAI rejected the API key | Re-copy the key; check it was not revoked. |
+| Run out of credits / quota | Add billing or credits at platform.openai.com. |
+| Rate-limiting | Wait a moment and press **Retry**. |
+| Model not available | Clear the **Model** field to use the default. |
+| Could not produce a valid layout | Simplify the request or allow a larger label. |
+| Network error | Check your connection, VPN or content blockers for `api.openai.com`. |
+
+Details for each error are under **Technical details** in the dialog.
+
+### Development
+
+Pipeline (all in `src/web/ai/`):
+
+```
+dialog.js ─▶ generate.js ─▶ prompt.js + client.js (OpenAI Responses API, Structured Outputs)
+                         ─▶ validate.js (parse, version migration, schema/semantic/layout checks, normalization)
+                         ─▶ (one repair request if unusable)
+                         ─▶ convert.js (native elements via elements.js factories)
+app.js applyGeneratedDesign() ─▶ editor state (one history entry, rollback on failure)
+```
+
+- `schema.js` defines the versioned, printer-independent label document (mm units). Bump `LABEL_DOCUMENT_VERSION` and extend `migrateDocument()` in `validate.js` when changing it.
+- **Changing the model:** edit `DEFAULT_MODEL` (and `SUGGESTED_MODELS`) in `ai/config.js`. The model must support Structured Outputs with `strict` JSON Schema. Users can also enter a model under Advanced options.
+- **Adding an element type:** add a variant to `schema.js` (and `AI_ENUMS.elementTypes`), a normalizer in `validate.js`, a converter in `convert.js` that produces existing editor elements, a rule in `prompt.js` if needed, plus a test.
+- The app talks to the module only through a small host API (`getAIHost()` in `app.js`); removing the `ai/` folder and the two entry buttons leaves the editor unchanged.
+- Debug logging (metadata only, never the key or prompt text): `localStorage.setItem('phomymo_ai_debug', '1')`.
+- Tests: `tests/07-create-with-ai.spec.ts` with fixtures in `tests/fixtures/ai/`; OpenAI is always mocked.
 
 ## Acknowledgments
 

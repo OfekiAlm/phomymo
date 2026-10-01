@@ -227,8 +227,10 @@ function closeDialog() {
 }
 
 function onKeyDown(e) {
-  if (e.key === 'Escape' && !$('#ai-dialog').classList.contains('hidden')) {
-    e.stopPropagation();
+  if ($('#ai-dialog').classList.contains('hidden')) return;
+  // Keep editor shortcuts (Delete, arrows, undo…) from acting on the canvas behind the modal.
+  e.stopPropagation();
+  if (e.key === 'Escape') {
     e.preventDefault();
     closeDialog();
   }

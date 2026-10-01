@@ -10,6 +10,7 @@ A guide to designing and printing labels with the Phomymo label designer.
 4. [Templates and Batch Printing](#templates-and-batch-printing)
 5. [Print Settings](#print-settings)
 6. [Custom Printer Definitions](#custom-printer-definitions)
+7. [Create with AI](#create-with-ai)
 
 ---
 
@@ -89,7 +90,7 @@ Click any element on the canvas to select it. The properties panel on the right 
 
 ### Text Properties
 
-Text elements have the most options: font family, size, bold/italic/underline, text color, background color, horizontal and vertical alignment, word wrap, and auto-scale.
+Text elements have the most options: font family, size, bold/italic/underline, text color, background color, horizontal and vertical alignment, word wrap, auto-scale, and **RTL** (right-to-left base direction for Hebrew, Arabic and mixed text).
 
 ![Text properties panel](screenshots/03-element-properties/01-text-properties-panel.png)
 
@@ -253,3 +254,26 @@ Click **Edit** on any built-in printer to override its settings. Modified built-
 ![After reset](screenshots/06-custom-printers/08-after-reset.png)
 
 All custom and modified printer definitions are saved in your browser's localStorage and persist across sessions.
+
+---
+
+## Create with AI
+
+Describe the label you want and let OpenAI design it. The result is made of ordinary, editable elements.
+
+1. Click **Create with AI** in the toolbar (on mobile, open the menu and tap **Create with AI**).
+2. Paste your OpenAI API key. You can create one at platform.openai.com → API keys; the account needs API credits.
+3. Type a description, for example *"Cable label with DEVICE-12, port ETH0 and a QR code for https://example.com/device/12"*.
+4. Click **Generate**. Use **Stop** to cancel.
+
+**Label size** - *Current label* keeps your size; *Let AI choose* uses a size from your description; *Custom size* sets one for this design.
+
+**Advanced options** - orientation, text direction (automatic, left-to-right, right-to-left), model, and *Add to current design* to keep your existing elements.
+
+After generation, edit, save, export and print as usual. Press **Undo** once to get your previous elements back.
+
+**Your API key** is only sent to OpenAI. It is forgotten when you close the page unless you tick **Remember on this device**, which stores it in this browser. Click **Forget saved key** to remove it.
+
+**Limitations** - logos and pictures appear as placeholders to replace with **Image**; barcodes and QR codes may be enlarged or changed to a scannable format; label size changes are not undone by Undo.
+
+If something goes wrong, the dialog explains the problem (invalid key, no credits, rate limit, network) and offers **Retry** where it makes sense. Your current design is never changed by a failed generation.
