@@ -81,9 +81,14 @@ export function sanitizeText(value, maxLength = LIMITS.MAX_TEXT_LENGTH) {
     .replace(/[\u0000-\u0008\u000B-\u001F\u007F-\u009F]/g, '')
     // Bidi embeddings/overrides (LRE, RLE, PDF, LRO, RLO) - can visually spoof text
     .replace(/[\u202A-\u202E]/g, '')
-    // HTML-like tags and simple markdown emphasis; text is rendered as plain text
-    .replace(/<\/?[a-zA-Z][^<>]*>/g, '')
+    // Simple markdown emphasis; text is rendered as plain text
     .replace(/\*\*(.+?)\*\*/g, '$1');
+  // HTML-like tags; repeat until stable so nested fragments like "<scr<b>ipt>" cannot reassemble.
+  let previous;
+  do {
+    previous = text;
+    text = text.replace(/<\/?[a-zA-Z][^<>]*>/g, '');
+  } while (text !== previous);
   if (text.length > maxLength) text = text.slice(0, maxLength);
   return { text, changed: text !== original };
 }
