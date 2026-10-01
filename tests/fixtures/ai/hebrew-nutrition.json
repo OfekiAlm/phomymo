@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "title": "גלידת חלבון",
+  "canvas": { "widthMm": 50, "heightMm": 50, "shape": "rectangle" },
+  "direction": "rtl",
+  "elements": [
+    { "type": "text", "id": "title", "group": null, "x": 2, "y": 2, "width": 46, "height": 8, "rotation": 0, "text": "גלידת חלבון 150 גרם", "fontFamily": "Arial", "fontSizePt": 12, "bold": true, "italic": false, "underline": false, "align": "start", "verticalAlign": "middle", "direction": "auto", "color": "black", "background": "transparent", "wrap": false, "autoFit": true },
+    { "type": "table", "id": "nutrition", "group": null, "x": 2, "y": 11, "width": 46, "height": 28, "rotation": 0,
+      "rows": [
+        { "cells": ["ערכים תזונתיים", "ל-100 גרם"], "bold": true },
+        { "cells": ["אנרגיה (קלוריות)", "120"], "bold": false },
+        { "cells": ["חלבונים (גרם)", "15"], "bold": false },
+        { "cells": ["פחמימות (גרם)", "10"], "bold": false }
+      ],
+      "columnWeights": [2, 1], "fontFamily": "Arial", "fontSizePt": 8, "borders": "grid", "direction": "rtl", "lastColumnAlign": "end" },
+    { "type": "text", "id": "allergens", "group": null, "x": 2, "y": 40, "width": 46, "height": 8, "rotation": 0, "text": "מכיל: חלב. עשוי להכיל: אגוזים", "fontFamily": "Arial", "fontSizePt": 8, "bold": false, "italic": false, "underline": false, "align": "start", "verticalAlign": "middle", "direction": "rtl", "color": "black", "background": "transparent", "wrap": true, "autoFit": false }
+  ],
+  "notes": []
+}

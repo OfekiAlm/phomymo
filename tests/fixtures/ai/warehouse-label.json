@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "title": "Warehouse item label",
+  "canvas": { "widthMm": 50, "heightMm": 30, "shape": "rectangle" },
+  "direction": "ltr",
+  "elements": [
+    { "type": "rectangle", "id": "frame", "group": null, "x": 0.5, "y": 0.5, "width": 49, "height": 29, "rotation": 0, "fill": "none", "stroke": "black", "strokeWidthMm": 0.5, "cornerRadiusMm": 1 },
+    { "type": "text", "id": "name", "group": "header", "x": 2, "y": 1.5, "width": 46, "height": 6, "rotation": 0, "text": "Steel Hex Bolts M8", "fontFamily": "Inter", "fontSizePt": 12, "bold": true, "italic": false, "underline": false, "align": "start", "verticalAlign": "middle", "direction": "auto", "color": "black", "background": "transparent", "wrap": false, "autoFit": true },
+    { "type": "line", "id": "rule", "group": "header", "x1": 2, "y1": 8, "x2": 48, "y2": 8, "thicknessMm": 0.3, "color": "black" },
+    { "type": "text", "id": "details", "group": null, "x": 2, "y": 9, "width": 22, "height": 8, "rotation": 0, "text": "QTY: 250\nSHELF: B-04-2", "fontFamily": "Roboto Mono", "fontSizePt": 8, "bold": false, "italic": false, "underline": false, "align": "start", "verticalAlign": "top", "direction": "ltr", "color": "black", "background": "transparent", "wrap": true, "autoFit": false },
+    { "type": "barcode", "id": "sku_barcode", "group": null, "x": 2, "y": 18, "width": 46, "height": 10, "rotation": 0, "data": "SKU-12345", "format": "CODE128", "showText": true, "textSizePt": 7 },
+    { "type": "qr", "id": "qr", "group": null, "x": 33, "y": 9, "width": 8, "height": 8, "rotation": 0, "data": "https://example.com/item/12345" }
+  ],
+  "notes": []
+}

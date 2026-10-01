@@ -132,7 +132,7 @@ function convertImagePlaceholder(el) {
     strokeWidth: 2,
     cornerRadius: 0,
   });
-  const fontSize = Math.max(12, Math.min(28, Math.round(box.height / 4)));
+  const fontSize = Math.max(17, Math.min(28, Math.round(box.height / 4)));
   const label = createTextElement(el.description, {
     ...box,
     fontSize,
